@@ -22,7 +22,7 @@ ptm <- proc.time()
 Datos<-read.csv("PublicUSefulBankDataFurtherReduced.txt",sep=",",header=TRUE)
 
 #Para que país en concreto? EN MAYUS
-Pais<-"UNITED STATES"
+Pais<-"BRAZIL"
 
 #seleccionamos aquellas variables que usaremos para juntar empresas según similitud
 clients <- data.frame(Datos$Risk.Country,Datos$Customer.Code, Datos$Line.Of.Business, 
@@ -112,7 +112,8 @@ ggsave(plot)
 carga<-proc.time() - ptm
 #----------------------------------------------------------------------------------------------------------------------v1
 ptm <- proc.time()
-
+totalproductos<-matrix(NA,nrow = 50, ncol = 5)
+valorplotv1<-matrix(NA, ncol=2,nrow=5)
 for(i in 1:numcenters){
   file<-toString(i)
   #Detectar cluster más poblado
@@ -122,7 +123,8 @@ for(i in 1:numcenters){
 
   
   #UsuariosCluster<-ClusterImportante$Datos.Customer.Code;
-  
+  numero_productos<-sort(table(ClusterImportante$Datos.Product.Description))
+  totalproductos[1:length(numero_productos),i]<-numero_productos
   #Cluster con picos más poblados (Primero ordenamos y luego seleccionamos)
   Productos_cluster<-(sort((ClusterImportante$Datos.Product.Description)));
   Productos_cluster<-as.numeric(names(which.max(table(Productos_cluster))));
@@ -133,6 +135,13 @@ for(i in 1:numcenters){
   Rep_num<-(filter(ClusterImportante, Datos.Product.Description==Productos_cluster));
   valorrep <- nrow(Rep_num)
   
+  
+  Freq=1/nrow(Rep_num);
+  Spreadplot=1/Spread_Rate$clients.Datos.Spread.Rate.Nominal;
+  
+  valorplotv1[i,1]<-Freq;
+  valorplotv1[i,2]<-Spreadplot;
+  
   if(length(Segundo_producto)==0){
     excel2<-data.frame(ClusterImportante,Spread_Rate)
     write.csv(excel2, file="No_es_valido_CS",na="NA", row.names=TRUE)
@@ -141,6 +150,7 @@ for(i in 1:numcenters){
     
     Tercero_producto<-(filter(ClusterImportante, Datos.Product.Description!=Segundo_producto & Datos.Product.Description!=Productos_cluster));
     Tercero_producto<-as.numeric(names(which.max(table(sort(Tercero_producto$Datos.Product.Description)))));
+    
     
     
     
@@ -201,9 +211,7 @@ for(i in 1:numcenters){
 v1<-proc.time() - ptm
 
 #----------------------------------------------------------------------------------------------------------v2
-
-a<-1;
-b<-1;
+valorplotv2<- matrix(NA, ncol=2, nrow=5)
 ptm <- proc.time()
 
 for(i in 1:numcenters){
@@ -270,10 +278,13 @@ for(i in 1:numcenters){
         Producto=Quitar;
         pob_mej=t;
         valorrep<-nrow(Rep_num)
+        valorplotv2[i,1]<-1/valorrep;
+        valorplotv2[i,2]<-1/S;
       }
       
       Long=Long-1;
       t=t+1;
+      
       
       
     }
@@ -333,10 +344,11 @@ v2<-proc.time() - ptm
 #-----------------------------------------------------------------------------------------------------------v3
 ptm <- proc.time()
 
-
+numcenters=5
 #Bucle para determinar el C-S para cada uno de los Cluster
 for(i in 1:numcenters){
-  normaplot<-matrix(data=NA, ncol = 2, nrow=50);
+  normaplot<-matrix(data=Inf, ncol = 4, nrow=50);
+  P2<-matrix(data=Inf, nrow=50)
   k=1;
   
   file<-toString(i)
@@ -359,16 +371,15 @@ for(i in 1:numcenters){
   
   norma<-c(Freq,S);
   
-
-  
   if(norma[2]==Inf){
     P=1000;
   }else{
-    P=norm(norma, type="2");
+    P2[k]=norm(norma, type="2");
     normaplot[k,1]<-norma[1];
     normaplot[k,2]<-norma[2];
-    valorrep<-nrow(Rep_num)
-    Producto=Quitar;
+    normaplot[k,3]<-Quitar;
+    normaplot[k,4]<-P2[k];
+    k=k+1;
   }
   
   
@@ -392,7 +403,6 @@ for(i in 1:numcenters){
   }else{
     
     while(Long>=1){
-     
       
       Productos_cluster1<-filter(Productos_cluster1,Productos_cluster1$sort..ClusterImportante.Datos.Product.Description..!=Quitar)
       Productos_cluster2<-as.numeric(names(which.max(table(Productos_cluster1))));
@@ -407,22 +417,18 @@ for(i in 1:numcenters){
       norma<-c(Freq,S);
       
       
+      
       if(norma[2]==Inf){
-        P1=1000;
+        P=1000;
       }else{
-        P1=norm(norma, type="2");
+        P2[k]=norm(norma, type="2");
         normaplot[k,1]<-norma[1];
         normaplot[k,2]<-norma[2];
+        normaplot[k,3]<-Quitar;
+        normaplot[k,4]<-P2[k];
         k=k+1;
       }
       
-      
-      if(P1<=P){
-        P=P1
-        Producto=Quitar;
-        pob_mej=t;
-        valorrep<-nrow(Rep_num)
-      }
       
       Long=Long-1;
       t=t+1;
@@ -430,19 +436,35 @@ for(i in 1:numcenters){
       
     }
     
+    for(f in 1:(k-1)){
+      if(min(P2)==normaplot[f,4]){
+        P=P1[f]
+        Producto=normaplot[f,3];
+        pob_mej=t;
+        valorrep<-1/normaplot[f,1]
+        valorplot=normaplot[f,]
+      }
+    }
     
-    pab1 <- "OptMultiobj"
+    pab1 <- "OptMultiobje"
     pab2 <- file
     pab3 <- ".png"
     plot <- paste(pab1, Pais, pab2, pab3,sep="_")
     
-    pab1 <- "Optimización Multiobjeto"
+    pab1 <- "                       Optimización Multiobjeto"
     pab2 <- file
     pab4 <-"cluster"
-    plottitu <- paste(pab1, Pais, pab4,pab2, pab3,sep="_")
+    plottitu <- paste(pab1, Pais, pab4,pab2,sep="_")
+    
     
     png(plot)
-    plot(normaplot, xlab="1/(Frecuencia en el Cluster)", ylab="1/(Spread Rate)", col="blue" ,main=plottitu)
+    par(mar=c(5, 4, 6, 9.5), xpd=TRUE)
+    plot(normaplot[,1], normaplot[,2], xlab="1/(Frecuencia en el Cluster)", ylab="1/(Spread Rate)", col="black" , type="p")
+    title(plottitu)
+    points(valorplotv2[i,1], valorplotv2[i,2], type="p", col="red")
+    points(valorplotv1[i,1], valorplotv1[i,2], type="p", col="blue")
+    points(valorplot[1], valorplot[2], type="p", pch=0)
+    legend("right", inset=c(-0.45,0),c("Todos los productos","V1","V2","V3"),col = c("black", "blue", "red", "black"), pch = c(1, 1, 1, 0), bg = "gray90", cex=0.8)
     dev.off();
     #Generamos fichero
     
@@ -528,8 +550,7 @@ test=c(1,
        10,
        10,
        43,
-       0.03172,
-       0.30)
+       0.03172)
 
 # Load the class package that holds the knn() function
 library(class)
@@ -539,7 +560,7 @@ resultado<-(knn(train, test, cl, k = 1))
 attributes(.Last.value)
 
 #Generamos salidas validas
-pab1 <- "producto para"
+pab1 <- "V3Producto para"
 pab2 <- resultado
 union3 <- paste(pab1, Pais, pab2,sep="_")
 nuevo<-read.csv(file=union3,sep=",", header=TRUE)
